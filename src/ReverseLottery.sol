@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import "lib/solmate/src/utils/SafeTransferLib.sol";
+
 contract ReverseLottery {
     address public owner;
     address[] public players;
@@ -11,9 +13,13 @@ contract ReverseLottery {
     uint256 public roundStart;
     uint256 public roundDuration;
 
-    constructor(uint _roundDuration) {
+    event Deposit(address indexed player, uint256 amount, uint256 lockupPeriod);
+    event EliminatedPlayer(address indexed player);
+
+    constructor(uint _roundDuration, uint _depositAmount) {
         owner = msg.sender;
         roundDuration = _roundDuration;
+        depositAmount = _depositAmount;
     }
 
     modifier onlyOwner() {
@@ -35,6 +41,7 @@ contract ReverseLottery {
         players.push(msg.sender);
         playerBalances[msg.sender] = msg.value;
         lockupCounter[msg.sender] = lockupPeriod;
+        emit Deposit(msg.sender, msg.value, lockupPeriod);
     }
 
     function eliminatePlayer() public onlyOwner {
@@ -56,6 +63,15 @@ contract ReverseLottery {
         for (uint256 i = 0; i < players.length; i++) {
             playerBalances[players[i]] += depositAmount / players.length;
         }
+        emit EliminatedPlayer(eliminatedPlayer);
+        // TODO: Add a transfer of a "L" NFT to the eliminated player
+    }
+
+    function decrementLockupCounter() public onlyOwner {
+        for (uint256 i = 0; i < players.length; i++) {
+            if(lockupCounter[players[i]] > 0)
+                lockupCounter[players[i]]--;
+        }
     }
 
     function startRound() public onlyOwner {
@@ -65,14 +81,11 @@ contract ReverseLottery {
     function endRound() public onlyOwner {
         require(block.timestamp >= roundStart + roundDuration, "Round is not yet over.");
         eliminatePlayer();
+        decrementLockupCounter();
         startRound();
     }
 
     function withdraw() public {
-        require(
-            block.timestamp > roundStart + roundDuration,
-            "Cannot withdraw before the end of the round."
-        );
         require(
             lockupCounter[msg.sender] == 0,
             "Lockup period has not ended yet."
@@ -80,8 +93,6 @@ contract ReverseLottery {
         uint256 amount = playerBalances[msg.sender];
         playerBalances[msg.sender] = 0;
         lockupCounter[msg.sender] = 0;
-        // msg.sender.transfer(amount);
-        // Transfer amount to msg.sender
-        
+        SafeTransferLib.safeTransferETH(msg.sender, amount);
     }
 }
