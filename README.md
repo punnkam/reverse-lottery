@@ -1,0 +1,1 @@
+Perpetually running reverse lottery

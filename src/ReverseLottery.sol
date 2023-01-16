@@ -26,7 +26,6 @@ contract ReverseLottery {
         require(msg.sender == owner, "Only owner can call this function.");
         _;
     }
-
     function deposit(uint256 lockupPeriod) public payable {
         require(msg.value == depositAmount, "Incorrect deposit amount.");
         require(
